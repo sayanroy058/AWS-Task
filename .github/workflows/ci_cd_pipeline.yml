@@ -32,11 +32,8 @@ jobs:
         nohup python backend_api.py > backend.log 2>&1 &  # Start backend in the background
         sleep 10  # Ensure enough time for the backend to start
 
-    - name: Run frontend tests
+    - name: Run tests
       run: |
-        pytest test_frontend_app.py || (cat backend.log && exit 1)  # Print logs if tests fail
+        pytest test_app.py || (cat backend.log && exit 1)  # Print logs if tests fail
 
-    - name: Deploy
-      run: |
-        echo "Deploying application..."
-        # Add deployment commands here
+
