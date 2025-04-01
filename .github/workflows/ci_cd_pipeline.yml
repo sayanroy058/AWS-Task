@@ -19,21 +19,22 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.x'
+        python-version: '3.10'  # Explicitly use Python 3.10 for compatibility
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pytest  # Ensure pytest is installed
 
     - name: Start backend server
       run: |
-        python backend_api.py &
-        sleep 5  # Wait for backend server to start
+        nohup python backend_api.py > backend.log 2>&1 &  # Start backend in the background
+        sleep 10  # Ensure enough time for the backend to start
 
     - name: Run frontend tests
       run: |
-        pytest test_frontend_app.py
+        pytest test_frontend_app.py || (cat backend.log && exit 1)  # Print logs if tests fail
 
     - name: Deploy
       run: |
