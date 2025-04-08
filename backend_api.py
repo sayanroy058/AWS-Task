@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_cors import CORS  # ✅ Added
 from datetime import datetime
 import os
 import requests
 
 app = Flask(__name__)
+CORS(app, origins=["http://shopa.beauty:3000"])  # ✅ Enable CORS for specific frontend
 
 # Configuration
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -89,7 +91,6 @@ def get_cart():
     user_id = request.args.get('user_id')
     cart_items = CartItem.query.filter_by(user_id=user_id).all()
     
-    # Fetch all products from external API
     url = 'http://3.250.189.56:5000/freelancer/products'
     response = requests.get(url)
     
@@ -100,7 +101,6 @@ def get_cart():
     
     items = []
     for item in cart_items:
-        # Get product details from external API data
         product = products.get(item.product_id)
         if product:
             items.append({
@@ -124,8 +124,7 @@ def add_to_cart():
     product_id = data['product_id']
     quantity = data.get('quantity', 1)
     
-    # Verify product exists in external API
-    url = f'http://3.250.189.56:5000/freelancer/products'
+    url = 'http://3.250.189.56:5000/freelancer/products'
     response = requests.get(url)
     
     if response.status_code != 200:
@@ -137,19 +136,12 @@ def add_to_cart():
     if not product_exists:
         return jsonify({'error': 'Product not found'}), 404
     
-    existing_item = CartItem.query.filter_by(
-        user_id=user_id,
-        product_id=product_id
-    ).first()
+    existing_item = CartItem.query.filter_by(user_id=user_id, product_id=product_id).first()
     
     if existing_item:
         existing_item.quantity += quantity
     else:
-        cart_item = CartItem(
-            user_id=user_id,
-            product_id=product_id,
-            quantity=quantity
-        )
+        cart_item = CartItem(user_id=user_id, product_id=product_id, quantity=quantity)
         db.session.add(cart_item)
     
     db.session.commit()
@@ -188,7 +180,6 @@ def get_products():
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 5))
     
-    # Fetch products directly from external API
     url = 'http://3.250.189.56:5000/freelancer/products'
     response = requests.get(url)
     
@@ -197,20 +188,16 @@ def get_products():
     
     all_products = response.json()
     
-    # Filter products if search parameter is provided
     if search:
         all_products = [p for p in all_products if search.lower() in p['title'].lower()]
     
-    # Calculate pagination
     total = len(all_products)
     pages = (total + per_page - 1) // per_page
     start_idx = (page - 1) * per_page
     end_idx = min(start_idx + per_page, total)
     
-    # Get products for current page
     paged_products = all_products[start_idx:end_idx]
     
-    # Format products for response
     result = [{
         'id': product['_id'],
         'title': product['title'],
@@ -233,7 +220,6 @@ def get_products():
         'current_page': page
     })
 
-# Fetch Products from External API (kept for reference but not used anymore)
 @app.route('/fetch-products', methods=['GET'])
 def fetch_products():
     url = 'http://3.250.189.56:5000/freelancer/products'
@@ -244,7 +230,7 @@ def fetch_products():
     products = response.json()
     return jsonify({'message': 'Products fetched successfully', 'count': len(products)}), 200
 
-# Order model for checkout process
+# Order models and routes
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -262,19 +248,16 @@ class OrderItem(db.Model):
     price = db.Column(db.Float, nullable=False)
     quantity = db.Column(db.Integer, default=1)
 
-# Checkout and Order Routes
 @app.route('/api/checkout', methods=['POST'])
 def checkout():
     data = request.get_json()
     user_id = data['user_id']
     shipping_info = data['shipping_info']
     
-    # Get cart items
     cart_items = CartItem.query.filter_by(user_id=user_id).all()
     if not cart_items:
         return jsonify({'error': 'Cart is empty'}), 400
     
-    # Fetch products from external API
     url = 'http://3.250.189.56:5000/freelancer/products'
     response = requests.get(url)
     
@@ -283,7 +266,6 @@ def checkout():
     
     products = {p['_id']: p for p in response.json()}
     
-    # Calculate order total
     subtotal = 0
     order_items = []
     
@@ -302,12 +284,10 @@ def checkout():
             'quantity': item.quantity
         })
     
-    # Add shipping and tax
     shipping = 5.0
     tax = subtotal * 0.1
     total = subtotal + shipping + tax
     
-    # Create order
     shipping_address = f"{shipping_info['address']}, {shipping_info['city']}, {shipping_info['state']} {shipping_info['zip']}"
     
     order = Order(
@@ -319,7 +299,6 @@ def checkout():
     db.session.add(order)
     db.session.flush()
     
-    # Add order items
     for item_data in order_items:
         order_item = OrderItem(
             order_id=order.id,
@@ -330,7 +309,6 @@ def checkout():
         )
         db.session.add(order_item)
     
-    # Clear cart
     for item in cart_items:
         db.session.delete(item)
     
